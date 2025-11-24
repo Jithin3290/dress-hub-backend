@@ -41,19 +41,27 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     "corsheaders",
+    "product",
+    "django_filters",
 ]
 
 MIDDLEWARE = [
+    # --- JWT COOKIE → AUTHORIZATION middleware (MUST be before AuthenticationMiddleware) ---
+    "django_dress.middleware.jwt_cookie_middleware.JWTAuthCookieMiddleware",
+
+    # --- CORS ---
     "corsheaders.middleware.CorsMiddleware",
+
+    # --- Django default middlewares ---
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
 
 ROOT_URLCONF = 'django_dress.urls'
 
@@ -135,8 +143,11 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.IsAuthenticated",
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ),
+        "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+    ],
 }
 
 from datetime import timedelta
@@ -156,3 +167,8 @@ CSRF_COOKIE_SAMESITE = "None"
 
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent  # ensure BASE_DIR defined
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"

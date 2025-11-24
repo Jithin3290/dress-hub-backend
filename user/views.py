@@ -11,7 +11,9 @@ from rest_framework.views import APIView
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import LoginSerializer, UserSerializer
+from .serializers import LoginSerializer, UserSerializer,ProfileSerializer
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+import logging, traceback
 
 class SignupView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -102,10 +104,28 @@ class LogoutView(APIView):
 
         return response
     
+logger = logging.getLogger(__name__)
+
 class ProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
-        user = request.user
-        data = UserSerializer(user).data
-        return Response(data, status=status.HTTP_200_OK)
+        serializer = ProfileSerializer(request.user, context={"request": request})
+        return Response(serializer.data)
+
+    def patch(self, request):
+        # debug line: helps confirm if authentication succeeded
+        logger.debug("ProfileView.patch request.user: id=%s authenticated=%s", getattr(request.user, "id", None), request.user.is_authenticated)
+
+        try:
+            serializer = ProfileSerializer(request.user, data=request.data, partial=True, context={"request": request})
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            tb = traceback.format_exc()
+            logger.error("Profile update error: %s\n%s", exc, tb)
+            # Helpful during development. Remove the traceback in production.
+            return Response({"detail": str(exc), "traceback": tb}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -1,6 +1,6 @@
+# accounts/serializers.py
 from rest_framework import serializers
 from .models import User
-
 
 class SignupSerializer(serializers.ModelSerializer):
     password1 = serializers.CharField(write_only=True)
@@ -19,12 +19,18 @@ class SignupSerializer(serializers.ModelSerializer):
         ]
 
     def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
+        qs = User.objects.filter(email=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
             raise serializers.ValidationError("Email already exists")
         return value
 
     def validate_phone_number(self, value):
-        if User.objects.filter(phone_number=value).exists():
+        qs = User.objects.filter(phone_number=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
             raise serializers.ValidationError("Phone number already exists")
         return value
 
@@ -42,12 +48,11 @@ class SignupSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
-    
+
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField()
-
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -61,3 +66,46 @@ class UserSerializer(serializers.ModelSerializer):
             "profile_picture",
             "is_banned",
         ]
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "name",
+            "phone_number",
+            "profile_picture",
+            "is_banned",
+        ]
+        read_only_fields = ["id", "email"]
+
+    def validate_email(self, value):
+        qs = User.objects.filter(email=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Email already exists")
+        return value
+
+    def validate_phone_number(self, value):
+        qs = User.objects.filter(phone_number=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Phone number already exists")
+        return value
+
+    def to_representation(self, instance):
+        """
+        Ensure profile_picture is an absolute URL when the serializer has 'request' in context.
+        """
+        data = super().to_representation(instance)
+        request = self.context.get("request", None)
+        pic = data.get("profile_picture")
+        if pic and request and pic.startswith("/"):
+            data["profile_picture"] = request.build_absolute_uri(pic)
+        return data
