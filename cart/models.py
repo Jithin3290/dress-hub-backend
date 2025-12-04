@@ -10,6 +10,7 @@ class CartItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="cart_items")
     quantity = models.PositiveIntegerField(default=1)
     added_at = models.DateTimeField(default=timezone.now)
+    size = models.CharField(max_length=32, null=True, blank=True)
 
     class Meta:
         unique_together = ("user", "product")
