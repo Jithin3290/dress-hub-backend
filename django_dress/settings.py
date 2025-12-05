@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-
+from datetime import timedelta
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "cart",
     "wishlist",
     "recentlywatched",
+    "order.apps.OrderConfig",
   
 ]
 
@@ -154,7 +155,7 @@ REST_FRAMEWORK = {
     ],
 }
 
-from datetime import timedelta
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
@@ -162,6 +163,9 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+# cors
+
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
@@ -172,7 +176,12 @@ CSRF_COOKIE_SAMESITE = "None"
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
-from pathlib import Path
+
 BASE_DIR = Path(__file__).resolve().parent.parent  # ensure BASE_DIR defined
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# razorpay
+
+RAZORPAY_KEY_ID = "rzp_test_RnrQ2LvFdfgWaI"
+RAZORPAY_KEY_SECRET = "QWayXrI4StKOIpzt866rMpKU"
