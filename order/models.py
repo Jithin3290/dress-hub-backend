@@ -24,7 +24,7 @@ class Order(models.Model):
 
     # Razorpay fields
     razorpay_order_id = models.CharField(max_length=255, blank=True, null=True)
-    razorpay_payment_id = models.CharField(max_length=255, blank=True, null=True)
+    razorpay_payment_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     razorpay_signature = models.CharField(max_length=255, blank=True, null=True)
 
     payment_status = models.CharField(

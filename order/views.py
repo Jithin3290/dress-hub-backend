@@ -44,54 +44,50 @@ def user_orders(request):
     return Response(UserOrderSerializer(orders, many=True).data)
 
 
+# COD checkout (safe field handling)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def cod_checkout(request):
-    """
-    POST /api/orders/cod/
-    Body: { "orders": [ { "product": id, "quantity": n, "size": "M", "shipping_address": "...", "phone": "..." }, ... ] }
-    """
     orders_payload = request.data.get("orders")
     if not orders_payload:
         return Response({"error": "orders payload required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # build products map
     prod_ids = [o["product"] for o in orders_payload]
     products = Product.objects.filter(id__in=prod_ids)
     product_map = {p.id: p for p in products}
 
-    order_objects = []
-    order_items_objects = []
+    created_orders = []
     total_amount = 0
 
-    # validate and construct
-    for o in orders_payload:
-        p = product_map.get(o["product"])
-        if not p:
-            return Response({"error": f"Product {o['product']} not found"}, status=status.HTTP_404_NOT_FOUND)
-        qty = int(o.get("quantity", 1))
-        if p.product_stock < qty:
-            return Response({"error": f"Not enough stock for {p.name}"}, status=status.HTTP_400_BAD_REQUEST)
+    order_field_names = {f.name for f in Order._meta.get_fields()}
 
-        price = p.price
-        total_amount += price * qty
-
-    # create DB records inside transaction
     with transaction.atomic():
-        created_orders = []
         for o in orders_payload:
-            p = product_map[o["product"]]
-            qty = int(o.get("quantity", 1))
-            price = p.price
+            p = product_map.get(o["product"])
+            if not p:
+                return Response({"error": f"Product {o['product']} not found"}, status=status.HTTP_404_NOT_FOUND)
 
-            order = Order.objects.create(
+            qty = int(o.get("quantity", 1))
+            price = getattr(p, "new_price", None)
+            if price is None:
+                price = getattr(p, "price", None) or getattr(p, "old_price", 0)
+            total_amount += price * qty
+
+            # build order instance without optional fields
+            order = Order(
                 user=request.user,
                 total_amount=price * qty,
-                payment_status="PENDING",
-                payment_method="COD",
                 shipping_address=o.get("shipping_address", ""),
                 phone=o.get("phone", ""),
             )
+
+            # only set optional fields if they exist on the model
+            if "payment_status" in order_field_names:
+                setattr(order, "payment_status", "PENDING")
+            if "payment_method" in order_field_names:
+                setattr(order, "payment_method", "COD")
+
+            order.save()
 
             OrderItem.objects.create(
                 order=order,
@@ -101,46 +97,54 @@ def cod_checkout(request):
                 price=price,
             )
 
-            # reduce stock
-            Product.objects.filter(id=p.id).update(product_stock=F("product_stock") - qty)
-
             created_orders.append(order)
 
-        # remove from cart for these products
         CartItem.objects.filter(user=request.user, product_id__in=prod_ids).delete()
 
     serializer = CheckoutOrderSerializer(created_orders, many=True)
     return Response({"message": "Orders placed (COD)", "orders": serializer.data, "total_amount": total_amount}, status=status.HTTP_201_CREATED)
 
 
+# razorpay create (no stock checks)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def razorpay_create_order(request):
     """
-    POST /api/orders/razorpay-create/
-    Body: { "orders": [ ... same as above ... ] }
+    POST /api/v1/order/checkout/razorpay/create/
+    Body: { "orders": [ ... ] }
     Returns: razorpay_order_id, key, amount (in paise)
     """
     orders_payload = request.data.get("orders")
     if not orders_payload:
         return Response({"error": "orders payload required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # validate stock & calculate total
+    # build products map and calculate total (no stock checks)
     prod_ids = [o["product"] for o in orders_payload]
     products = Product.objects.filter(id__in=prod_ids)
     product_map = {p.id: p for p in products}
+
     total = 0
     for o in orders_payload:
         p = product_map.get(o["product"])
         if not p:
             return Response({"error": f"Product {o['product']} not found"}, status=status.HTTP_404_NOT_FOUND)
+
         qty = int(o.get("quantity", 1))
-        if p.product_stock < qty:
-            return Response({"error": f"Not enough stock for {p.name}"}, status=status.HTTP_400_BAD_REQUEST)
-        total += p.price * qty
+
+        # use new_price if exists, else price, else old_price
+        price = getattr(p, "new_price", None)
+        if price is None:
+            price = getattr(p, "price", None) or getattr(p, "old_price", 0)
+
+        total += price * qty
 
     amount_paise = int(total * 100)
-    razorpay_order = razorpay_client.order.create({"amount": amount_paise, "currency": "INR", "payment_capture": 1})
+
+    razorpay_order = razorpay_client.order.create({
+        "amount": amount_paise,
+        "currency": "INR",
+        "payment_capture": 1
+    })
 
     return Response({
         "message": "Razorpay order created",
@@ -152,17 +156,11 @@ def razorpay_create_order(request):
     }, status=status.HTTP_201_CREATED)
 
 
+
+# Razorpay verify (safe field handling)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def razorpay_verify(request):
-    """
-    POST /api/orders/razorpay-verify/
-    Body: {
-      razorpay_payment_id, razorpay_order_id, razorpay_signature,
-      orders_payload: [ ... ]
-    }
-    Verifies signature, creates orders+items, reduces stock, clears cart.
-    """
     payment_id = request.data.get("razorpay_payment_id")
     order_id = request.data.get("razorpay_order_id")
     signature = request.data.get("razorpay_signature")
@@ -181,7 +179,6 @@ def razorpay_verify(request):
     except razorpay.errors.SignatureVerificationError:
         return Response({"error": "signature verification failed"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # normalize payload
     if isinstance(orders_payload, dict):
         orders_payload = [orders_payload]
 
@@ -192,28 +189,41 @@ def razorpay_verify(request):
     created_orders = []
     total_amount = 0
 
+    # field names present on Order model
+    order_field_names = {f.name for f in Order._meta.get_fields()}
+
     with transaction.atomic():
         for o in orders_payload:
             p = product_map.get(o["product"])
             if not p:
                 return Response({"error": f"Product {o['product']} not found"}, status=status.HTTP_404_NOT_FOUND)
-            qty = int(o.get("quantity", 1))
-            if p.product_stock < qty:
-                return Response({"error": f"Not enough stock for {p.name}"}, status=status.HTTP_400_BAD_REQUEST)
 
-            price = p.price
+            qty = int(o.get("quantity", 1))
+            price = getattr(p, "new_price", None)
+            if price is None:
+                price = getattr(p, "price", None) or getattr(p, "old_price", 0)
+
             total_amount += price * qty
 
-            order = Order.objects.create(
+            # create the order instance safely
+            order = Order(
                 user=request.user,
                 total_amount=price * qty,
-                payment_method="RAZORPAY",
-                payment_status="PAID",
-                razorpay_order_id=order_id,
-                razorpay_payment_id=payment_id,
                 shipping_address=o.get("shipping_address", ""),
                 phone=o.get("phone", ""),
             )
+
+            # set optional fields only if present on the model
+            if "payment_method" in order_field_names:
+                setattr(order, "payment_method", "RAZORPAY")
+            if "payment_status" in order_field_names:
+                setattr(order, "payment_status", "PAID")
+            if "razorpay_order_id" in order_field_names:
+                setattr(order, "razorpay_order_id", order_id)
+            if "razorpay_payment_id" in order_field_names:
+                setattr(order, "razorpay_payment_id", payment_id)
+
+            order.save()
 
             OrderItem.objects.create(
                 order=order,
@@ -223,22 +233,15 @@ def razorpay_verify(request):
                 price=price,
             )
 
-            # reduce stock
-            Product.objects.filter(id=p.id).update(product_stock=F("product_stock") - qty)
+            created_orders.append(order)
 
-        # clear cart entries for these products
         CartItem.objects.filter(user=request.user, product_id__in=prod_ids).delete()
 
-    serializer = CheckoutOrderSerializer(created_orders, many=True)  # created_orders is empty here, but serializer below uses actual DB query if needed
-
-    # fetch the newly created orders to return (simple approach)
-    user_new_orders = Order.objects.filter(user=request.user).order_by("-created_at")[:len(orders_payload)]
     return Response({
         "message": "Payment verified and orders created",
         "total_amount": total_amount,
-        "orders": CheckoutOrderSerializer(user_new_orders, many=True).data
+        "orders": CheckoutOrderSerializer(created_orders, many=True).data
     }, status=status.HTTP_201_CREATED)
-
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])

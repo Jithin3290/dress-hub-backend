@@ -1,8 +1,6 @@
 # orders/serializers.py
 from rest_framework import serializers
 from product.serializers import ProductSerializer
-from product.models import Product
-
 from .models import Order, OrderItem, Notification
 
 
@@ -23,27 +21,16 @@ class BaseOrderSerializer(serializers.ModelSerializer):
             "id",
             "total_amount",
             "payment_status",
-            "payment_method",
-            "order_status",
-            "tracking_id",
-            "delivery_date",
+            "razorpay_order_id",
+            "razorpay_payment_id",
             "shipping_address",
             "phone",
             "items",
             "created_at",
         ]
-        read_only_fields = [
-            "id",
-            "total_amount",
-            "payment_status",
-            "order_status",
-            "tracking_id",
-            "delivery_date",
-            "created_at",
-        ]
+        read_only_fields = fields  # all are read-only for output only
 
 
-# Views expect these exact names
 class CheckoutOrderSerializer(BaseOrderSerializer):
     pass
 
