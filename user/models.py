@@ -46,7 +46,7 @@ class User(AbstractUser):
     name = models.CharField(max_length=150)
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=15, unique=True, default="0000000000")
-    profile_picture = models.ImageField(upload_to="profiles/", default="default.png", null=True)
+    profile_picture = models.ImageField(upload_to="profiles/", default="bulb.jpg", null=True)
     is_banned = models.BooleanField(default=False)
 
     # override to avoid reverse accessor clashes with auth.User

@@ -45,7 +45,6 @@ INSTALLED_APPS = [
     "django_filters",
     "cart",
     "wishlist",
-    "recentlywatched",
     "order.apps.OrderConfig",
   
 ]

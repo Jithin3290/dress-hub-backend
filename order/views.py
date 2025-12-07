@@ -1,5 +1,6 @@
 # orders/simple_views.py
 import razorpay
+from decimal import Decimal
 from django.conf import settings
 from django.db import transaction
 from django.db.models import F
@@ -7,7 +8,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
+import hmac, hashlib, traceback
+from django.db import transaction, IntegrityError
 from product.models import Product
 from cart.models import CartItem
 from .models import Order, OrderItem, Notification
@@ -157,91 +159,169 @@ def razorpay_create_order(request):
 
 
 
-# Razorpay verify (safe field handling)
+
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def razorpay_verify(request):
-    payment_id = request.data.get("razorpay_payment_id")
-    order_id = request.data.get("razorpay_order_id")
-    signature = request.data.get("razorpay_signature")
-    orders_payload = request.data.get("orders_payload")
 
-    if not all([payment_id, order_id, signature, orders_payload]):
-        return Response({"error": "missing fields"}, status=status.HTTP_400_BAD_REQUEST)
-
-    # verify signature
     try:
-        razorpay_client.utility.verify_payment_signature({
-            "razorpay_order_id": order_id,
-            "razorpay_payment_id": payment_id,
-            "razorpay_signature": signature,
-        })
-    except razorpay.errors.SignatureVerificationError:
-        return Response({"error": "signature verification failed"}, status=status.HTTP_400_BAD_REQUEST)
+        payment_id = request.data.get("razorpay_payment_id")
+        order_id = request.data.get("razorpay_order_id")
+        signature = request.data.get("razorpay_signature")
+        orders_payload = request.data.get("orders_payload")
+        client_amount = request.data.get("amount", None)
 
-    if isinstance(orders_payload, dict):
-        orders_payload = [orders_payload]
+        if not all([payment_id, order_id, signature, orders_payload]):
+            return Response({"error": "missing fields"}, status=status.HTTP_400_BAD_REQUEST)
 
-    prod_ids = [o["product"] for o in orders_payload]
-    products = Product.objects.filter(id__in=prod_ids)
-    product_map = {p.id: p for p in products}
+        # normalize orders_payload
+        if isinstance(orders_payload, dict):
+            orders_payload = [orders_payload]
+        if not isinstance(orders_payload, list) or len(orders_payload) == 0:
+            return Response({"error": "orders_payload must be a non-empty list or object"}, status=status.HTTP_400_BAD_REQUEST)
 
-    created_orders = []
-    total_amount = 0
-
-    # field names present on Order model
-    order_field_names = {f.name for f in Order._meta.get_fields()}
-
-    with transaction.atomic():
+        # Fetch products, map by id
+        prod_ids = []
         for o in orders_payload:
-            p = product_map.get(o["product"])
+            try:
+                pid = int(o.get("product"))
+            except Exception:
+                return Response({"error": f"invalid product id in payload: {o.get('product')}"}, status=status.HTTP_400_BAD_REQUEST)
+            prod_ids.append(pid)
+
+        products = Product.objects.filter(id__in=prod_ids)
+        product_map = {p.id: p for p in products}
+
+        # compute expected total in rupees (Decimal)
+        expected_total = Decimal("0.00")
+        for o in orders_payload:
+            pid = int(o.get("product"))
+            p = product_map.get(pid)
             if not p:
-                return Response({"error": f"Product {o['product']} not found"}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": f"Product {pid} not found"}, status=status.HTTP_404_NOT_FOUND)
 
             qty = int(o.get("quantity", 1))
             price = getattr(p, "new_price", None)
             if price is None:
                 price = getattr(p, "price", None) or getattr(p, "old_price", 0)
 
-            total_amount += price * qty
+            try:
+                price_num = Decimal(str(price))
+            except Exception:
+                price_num = Decimal("0.00")
 
-            # create the order instance safely
-            order = Order(
-                user=request.user,
-                total_amount=price * qty,
-                shipping_address=o.get("shipping_address", ""),
-                phone=o.get("phone", ""),
-            )
+            expected_total += price_num * qty
 
-            # set optional fields only if present on the model
-            if "payment_method" in order_field_names:
-                setattr(order, "payment_method", "RAZORPAY")
-            if "payment_status" in order_field_names:
-                setattr(order, "payment_status", "PAID")
-            if "razorpay_order_id" in order_field_names:
-                setattr(order, "razorpay_order_id", order_id)
-            if "razorpay_payment_id" in order_field_names:
-                setattr(order, "razorpay_payment_id", payment_id)
+        # interpret client_amount if provided (try to detect paise vs rupees)
+        client_amount_rupees = None
+        if client_amount is not None:
+            try:
+                # client may send paise integer or rupees; handle both
+                client_amount_int = int(client_amount)
+                # heuristic: if client_amount >> expected_total, it's likely paise
+                if client_amount_int > (expected_total * Decimal(10)):
+                    client_amount_rupees = Decimal(client_amount_int) / Decimal(100)
+                else:
+                    client_amount_rupees = Decimal(str(client_amount))
+            except Exception:
+                try:
+                    client_amount_rupees = Decimal(str(client_amount))
+                except Exception:
+                    client_amount_rupees = None
 
-            order.save()
+        if client_amount_rupees is not None:
+            # allow tiny rounding difference
+            if round(client_amount_rupees, 2) != round(expected_total, 2):
+                return Response({
+                    "error": "amount_mismatch",
+                    "message": "Client amount does not match server computed total",
+                    "client_amount": str(client_amount_rupees),
+                    "server_total": str(expected_total)
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-            OrderItem.objects.create(
-                order=order,
-                product=p,
-                size=o.get("size", ""),
-                quantity=qty,
-                price=price,
-            )
+        # verify signature using razorpay utility
+        try:
+            razorpay_client.utility.verify_payment_signature({
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": payment_id,
+                "razorpay_signature": signature,
+            })
+        except razorpay.errors.SignatureVerificationError:
+            return Response({"error": "signature verification failed"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            traceback.print_exc()
+            return Response({"error": "signature verification error"}, status=status.HTTP_400_BAD_REQUEST)
 
-            created_orders.append(order)
+        # Build order kwargs only with real model fields
+        order_field_names = {f.name for f in Order._meta.get_fields()}
+        order_kwargs = {"user": request.user}
 
-        CartItem.objects.filter(user=request.user, product_id__in=prod_ids).delete()
+        # Check what field your Order model expects for total amount.
+        # If your model stores amount in paise (integer), convert:
+        #   order_kwargs["total_amount"] = int(expected_total * 100)
+        # If it stores rupees (Decimal), keep Decimal.
+        if "total_amount" in order_field_names:
+            # assume Decimal rupees; change to paise if your model uses integer paise
+            order_kwargs["total_amount"] = expected_total
 
-    return Response({
-        "message": "Payment verified and orders created",
-        "total_amount": total_amount,
-        "orders": CheckoutOrderSerializer(created_orders, many=True).data
-    }, status=status.HTTP_201_CREATED)
+        if "payment_method" in order_field_names:
+            order_kwargs["payment_method"] = "RAZORPAY"
+        if "payment_status" in order_field_names:
+            order_kwargs["payment_status"] = "PAID"
+        if "razorpay_order_id" in order_field_names:
+            order_kwargs["razorpay_order_id"] = order_id
+        if "razorpay_payment_id" in order_field_names:
+            order_kwargs["razorpay_payment_id"] = payment_id
+
+        # optional: copy shipping/phone from first item if available
+        first = orders_payload[0] if len(orders_payload) else {}
+        if "shipping_address" in order_field_names and first.get("shipping_address"):
+            order_kwargs["shipping_address"] = first.get("shipping_address")
+        if "phone" in order_field_names and first.get("phone"):
+            order_kwargs["phone"] = first.get("phone")
+
+        # Create one Order and its OrderItems inside a transaction
+        try:
+            with transaction.atomic():
+                order = Order.objects.create(**order_kwargs)
+
+                for o in orders_payload:
+                    pid = int(o.get("product"))
+                    p = product_map.get(pid)
+                    qty = int(o.get("quantity", 1))
+                    price = getattr(p, "new_price", None)
+                    if price is None:
+                        price = getattr(p, "price", None) or getattr(p, "old_price", 0)
+
+                    OrderItem.objects.create(
+                        order=order,
+                        product=p,
+                        size=o.get("size", ""),
+                        quantity=qty,
+                        price=price,
+                    )
+
+                # remove items from cart for this user (if using cart)
+                CartItem.objects.filter(user=request.user, product_id__in=prod_ids).delete()
+
+            return Response({"detail": "Payment verified and order created", "order_id": order.id}, status=status.HTTP_200_OK)
+
+        except IntegrityError as e:
+            traceback.print_exc()
+            return Response({"error": "database_integrity_error", "detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Product.DoesNotExist:
+            traceback.print_exc()
+            return Response({"error": "product_not_found"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            traceback.print_exc()
+            return Response({"error": "verification_failed", "detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        # any top-level unexpected error
+        traceback.print_exc()
+        return Response({"error": "server_error", "detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
