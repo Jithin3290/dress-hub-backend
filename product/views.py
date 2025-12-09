@@ -10,7 +10,7 @@ from .serializers import (
     ProductSerializer, ProductMiniSerializer, CategorySerializer,
     SizeSerializer, ProductSizeSerializer, ReviewSerializer,
 )
-
+# use APIView 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all().order_by("name")
     serializer_class = CategorySerializer

@@ -1,5 +1,7 @@
 # orders/simple_views.py
 import razorpay
+from product.models import Product, ProductSize
+
 from decimal import Decimal
 from django.conf import settings
 from django.db import transaction
@@ -90,7 +92,7 @@ def cod_checkout(request):
                 setattr(order, "payment_method", "COD")
 
             order.save()
-
+            # use bulk create
             OrderItem.objects.create(
                 order=order,
                 product=p,
@@ -161,11 +163,9 @@ def razorpay_create_order(request):
 
 
 
-
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def razorpay_verify(request):
-
     try:
         payment_id = request.data.get("razorpay_payment_id")
         order_id = request.data.get("razorpay_order_id")
@@ -218,9 +218,7 @@ def razorpay_verify(request):
         client_amount_rupees = None
         if client_amount is not None:
             try:
-                # client may send paise integer or rupees; handle both
                 client_amount_int = int(client_amount)
-                # heuristic: if client_amount >> expected_total, it's likely paise
                 if client_amount_int > (expected_total * Decimal(10)):
                     client_amount_rupees = Decimal(client_amount_int) / Decimal(100)
                 else:
@@ -232,7 +230,6 @@ def razorpay_verify(request):
                     client_amount_rupees = None
 
         if client_amount_rupees is not None:
-            # allow tiny rounding difference
             if round(client_amount_rupees, 2) != round(expected_total, 2):
                 return Response({
                     "error": "amount_mismatch",
@@ -257,15 +254,8 @@ def razorpay_verify(request):
         # Build order kwargs only with real model fields
         order_field_names = {f.name for f in Order._meta.get_fields()}
         order_kwargs = {"user": request.user}
-
-        # Check what field your Order model expects for total amount.
-        # If your model stores amount in paise (integer), convert:
-        #   order_kwargs["total_amount"] = int(expected_total * 100)
-        # If it stores rupees (Decimal), keep Decimal.
         if "total_amount" in order_field_names:
-            # assume Decimal rupees; change to paise if your model uses integer paise
             order_kwargs["total_amount"] = expected_total
-
         if "payment_method" in order_field_names:
             order_kwargs["payment_method"] = "RAZORPAY"
         if "payment_status" in order_field_names:
@@ -275,7 +265,6 @@ def razorpay_verify(request):
         if "razorpay_payment_id" in order_field_names:
             order_kwargs["razorpay_payment_id"] = payment_id
 
-        # optional: copy shipping/phone from first item if available
         first = orders_payload[0] if len(orders_payload) else {}
         if "shipping_address" in order_field_names and first.get("shipping_address"):
             order_kwargs["shipping_address"] = first.get("shipping_address")
@@ -285,12 +274,32 @@ def razorpay_verify(request):
         # Create one Order and its OrderItems inside a transaction
         try:
             with transaction.atomic():
-                order = Order.objects.create(**order_kwargs)
-
+                # 1) Lock all ProductSize rows needed and validate stock
+                # We'll collect tuples (product, size_name, qty) so we can create items after validation.
+                validation_items = []
                 for o in orders_payload:
                     pid = int(o.get("product"))
                     p = product_map.get(pid)
                     qty = int(o.get("quantity", 1))
+                    size_name = o.get("size", "")
+                    if not size_name:
+                        return Response({"error": f"size required for product {pid}"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    try:
+                        ps = ProductSize.objects.select_for_update().get(product=p, size__name=size_name)
+                    except ProductSize.DoesNotExist:
+                        return Response({"error": f"Size '{size_name}' not available for product {pid}"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    if ps.stock < qty:
+                        return Response({"error": f"Insufficient stock for {p.name} size {size_name}"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    validation_items.append((p, size_name, qty))
+
+                # 2) Create Order
+                order = Order.objects.create(**order_kwargs)
+
+                # 3) Create OrderItems and decrement stock (atomically using F)
+                for p, size_name, qty in validation_items:
                     price = getattr(p, "new_price", None)
                     if price is None:
                         price = getattr(p, "price", None) or getattr(p, "old_price", 0)
@@ -298,12 +307,14 @@ def razorpay_verify(request):
                     OrderItem.objects.create(
                         order=order,
                         product=p,
-                        size=o.get("size", ""),
+                        size=size_name,
                         quantity=qty,
                         price=price,
                     )
 
-                # remove items from cart for this user (if using cart)
+                    ProductSize.objects.filter(product=p, size__name=size_name).update(stock=F("stock") - qty)
+
+                # 4) remove items from cart for this user (if using cart)
                 CartItem.objects.filter(user=request.user, product_id__in=prod_ids).delete()
 
             return Response({"detail": "Payment verified and order created", "order_id": order.id}, status=status.HTTP_200_OK)
