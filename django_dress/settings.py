@@ -46,6 +46,11 @@ INSTALLED_APPS = [
     "cart",
     "wishlist",
     "order.apps.OrderConfig",
+    "dress_hub_admin",
+    "admin_orders",
+    "admin_products",
+
+
   
 ]
 

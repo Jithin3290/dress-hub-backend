@@ -104,6 +104,8 @@ class UserSerializer(serializers.ModelSerializer):
             "phone_number",
             "profile_picture",
             "is_banned",
+            "is_staff",         
+            "is_superuser", 
         ]
 
 
