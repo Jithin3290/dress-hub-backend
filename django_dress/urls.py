@@ -29,9 +29,7 @@ urlpatterns = [
     path("api/v1/admin/", include("dress_hub_admin.urls")),
     path("api/v1/admin/", include("admin_orders.urls")),
     path("api/v1/admin/", include("admin_products.urls")),
-
-
-
+    path("api/v1/admin/", include("admin_user.urls")),
 ]
 
 if settings.DEBUG:

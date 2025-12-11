@@ -27,6 +27,7 @@ class BaseOrderSerializer(serializers.ModelSerializer):
             "phone",
             "items",
             "created_at",
+            "order_status",
         ]
         read_only_fields = fields  # all are read-only for output only
 

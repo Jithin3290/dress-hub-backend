@@ -49,7 +49,7 @@ INSTALLED_APPS = [
     "dress_hub_admin",
     "admin_orders",
     "admin_products",
-
+    "admin_user",
 
   
 ]

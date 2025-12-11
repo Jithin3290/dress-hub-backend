@@ -10,7 +10,7 @@ User = get_user_model()
 class AdminUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "email", "name", "phone_number", "is_active"]
+        fields = ("id","name","email","phone_number","profile_picture","is_banned","is_staff","is_superuser")
 # ---- PRODUCTS ----
 class AdminProductSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
