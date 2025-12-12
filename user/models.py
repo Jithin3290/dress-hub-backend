@@ -1,5 +1,9 @@
 # user/models.py
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
+
+
 from django.contrib.auth.models import (
     AbstractUser,
     BaseUserManager,
@@ -72,3 +76,19 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+
+class SignupOTP(models.Model):
+    email = models.EmailField(db_index=True)
+    code = models.CharField(max_length=8)  # numeric code, store as string
+    created_at = models.DateTimeField(auto_now_add=True)
+    used = models.BooleanField(default=False)
+
+    def is_expired(self):
+        return timezone.now() > (self.created_at + timedelta(minutes=5))
+
+    def mark_used(self):
+        self.used = True
+        self.save(update_fields=["used"])
+

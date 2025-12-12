@@ -192,3 +192,15 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 RAZORPAY_KEY_ID = "rzp_test_RnrQ2LvFdfgWaI"
 RAZORPAY_KEY_SECRET = "QWayXrI4StKOIpzt866rMpKU"
+
+#SMTP configured
+# settings.py
+# settings.py (example: Gmail SMTP)
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "jithin3290@gmail.com"
+EMAIL_HOST_PASSWORD = "khbh uzno vgmb pjlt"   
+DEFAULT_FROM_EMAIL = "Dress_hub <no-reply@yourdomain.com>"
+
