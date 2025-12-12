@@ -50,7 +50,7 @@ INSTALLED_APPS = [
     "admin_orders",
     "admin_products",
     "admin_user",
-
+    "drf_spectacular",
   
 ]
 
@@ -160,6 +160,8 @@ REST_FRAMEWORK = {
         "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
     ],
+     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+
 }
 
 
@@ -204,3 +206,23 @@ EMAIL_HOST_USER = "jithin3290@gmail.com"
 EMAIL_HOST_PASSWORD = "khbh uzno vgmb pjlt"   
 DEFAULT_FROM_EMAIL = "Dress_hub <no-reply@yourdomain.com>"
 
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Dress Hub API",
+    "DESCRIPTION": "API docs for Dress Hub",
+    "VERSION": "1.0.0",
+    # optional: include your servers
+    "SERVERS": [{"url": "http://localhost:8000", "description": "Local"}],
+    # optional: add security scheme for JWT
+    "SECURITY": [{"BearerAuth": []}],
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SWAGGER_UI_SETTINGS": {"docExpansion": "none"},
+    "COMPONENTS": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        }
+    }
+}
