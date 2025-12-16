@@ -5,7 +5,6 @@ from .views import (
     razorpay_create_order,
     razorpay_verify,
     update_order_address,
-    notifications_view,
 )
 
 urlpatterns = [
@@ -21,6 +20,4 @@ urlpatterns = [
     # Update address
     path("<int:order_id>/update-address/", update_order_address, name="update_order_address"),
 
-    # Notifications
-    path("notifications/", notifications_view, name="notifications"),
 ]

@@ -31,12 +31,14 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    "channels",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
     'user',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
@@ -179,11 +181,12 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
 CORS_ALLOW_CREDENTIALS = True
+
 SESSION_COOKIE_SAMESITE = "None"
 CSRF_COOKIE_SAMESITE = "None"
-
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # ensure BASE_DIR defined
@@ -225,4 +228,19 @@ SPECTACULAR_SETTINGS = {
             }
         }
     }
+}
+
+# REDIS
+# switch django from WSGI to ASGI
+
+ASGI_APPLICATION = "django_dress.asgi.application"
+
+# Define the channel layers to use Redis as the backend
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
 }

@@ -18,7 +18,6 @@ from .models import Order, OrderItem, Notification
 from .serializers import (    
     CheckoutOrderSerializer,
     UserOrderSerializer,
-    NotificationSerializer,
 )
 
 # simple client (uses keys from settings.py)
@@ -355,18 +354,3 @@ def update_order_address(request, order_id):
     return Response(UserOrderSerializer(order).data, status=status.HTTP_200_OK)
 
 
-# Simple notifications list + mark-as-read
-@api_view(["GET", "PATCH"])
-@permission_classes([IsAuthenticated])
-def notifications_view(request):
-    if request.method == "GET":
-        notes = Notification.objects.filter(user=request.user).order_by("-created_at")
-        return Response(NotificationSerializer(notes, many=True).data)
-
-    # PATCH: mark all as read (or accept {"id": <id>} to mark single)
-    note_id = request.data.get("id")
-    if note_id:
-        Notification.objects.filter(id=note_id, user=request.user).update(read=True)
-    else:
-        Notification.objects.filter(user=request.user).update(read=True)
-    return Response({"message": "notifications updated"}, status=status.HTTP_200_OK)

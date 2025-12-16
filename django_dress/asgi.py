@@ -1,16 +1,15 @@
-"""
-ASGI config for django_dress project.
-
-It exposes the ASGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
-"""
-
 import os
+# Daphne starts Django outside of manage.py.
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_dress.settings")
 
 from django.core.asgi import get_asgi_application
+from channels.routing import ProtocolTypeRouter, URLRouter
+from order.routing import websocket_urlpatterns
+from order.ws_middleware import JWTAuthMiddleware
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_dress.settings')
-
-application = get_asgi_application()
+application = ProtocolTypeRouter({
+    "http": get_asgi_application(), # normal HTTP requests
+    "websocket": JWTAuthMiddleware( # WebSocket with JWT authentication
+        URLRouter(websocket_urlpatterns)
+    ),
+})

@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
-
+from django.contrib.auth import login
 from .serializers import SignupSerializer
 from django.contrib.auth import authenticate
 from rest_framework.views import APIView
@@ -142,6 +142,7 @@ class LoginView(APIView):
         password = serializer.validated_data["password"]
 
         user = authenticate(request, email=email, password=password)
+        #login(request, user)
         if user is None:
             return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -191,7 +192,10 @@ class LogoutView(APIView):
         # delete both JWT cookies
         response.delete_cookie("access_token")
         response.delete_cookie("refresh_token")
+        response.delete_cookie("sessionid")
+        response.delete_cookie("csrftoken")
 
+        
         return response
     
 logger = logging.getLogger(__name__)
