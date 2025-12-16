@@ -98,14 +98,18 @@ WSGI_APPLICATION = 'django_dress.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        "OPTIONS": {
-            "timeout": 20,   # wait 20 seconds for locks
-        },
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "dresshub_db",
+        "USER": "postgres",
+        "PASSWORD": "12345",
+        "HOST": "localhost",
+        "PORT": "5433",
     }
 }
+
+
+
 
 
 # Password validation

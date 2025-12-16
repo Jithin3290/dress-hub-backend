@@ -51,6 +51,18 @@ class AdminProductSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         ]
         read_only_fields = ("slug", "created_at", "updated_at", "sizes", "image_url")
+    # ---------------- VALIDATION ----------------
+
+    def validate_new_price(self, value):
+        if value < 0:
+            raise serializers.ValidationError("New price cannot be negative")
+        return value
+
+    def validate_old_price(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Old price cannot be negative")
+        return value
+
 
     def get_image_url(self, obj):
         if not obj.image:
