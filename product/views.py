@@ -28,6 +28,7 @@ class SizeViewSet(viewsets.ModelViewSet):
 
 
 class ProductViewSet(viewsets.ModelViewSet):
+    authentication_classes = []
     queryset = Product.objects.all().select_related("category")
     serializer_class = ProductSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)
@@ -40,7 +41,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at", "new_price"]
     search_fields = ["name", "category__name"]
 
-    @action(detail=False, methods=["get"], permission_classes=[permissions.AllowAny])
+    @action(detail=False, methods=["get"])
     def mini(self, request):
         """
         Optional lightweight list for client components that only need a small product shape.
