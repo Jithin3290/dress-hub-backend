@@ -166,8 +166,7 @@ SIMPLE_JWT = {
 # --------------------------------------------------
 
 CORS_ALLOWED_ORIGINS = [
-    "https://dress-5sfbnz04i-jithin3290s-projects.vercel.app/",
-    "https://dress-c92kbiejy-jithin3290s-projects.vercel.app/",
+    "https://dress-hub-nu.vercel.app",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -181,9 +180,9 @@ CORS_ALLOW_CREDENTIALS = True
 # --------------------------------------------------
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://dress-5sfbnz04i-jithin3290s-projects.vercel.app/",
+    "https://dress-hub-nu.vercel.app",
     "https://dresshub.duckdns.org",
-    "https://dress-c92kbiejy-jithin3290s-projects.vercel.app/",
+   
 ]
 
 CSRF_COOKIE_SECURE = True
