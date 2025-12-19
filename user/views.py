@@ -21,6 +21,7 @@ import random
 from django.conf import settings
 from django.core.mail import send_mail
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 logger = logging.getLogger(__name__)
 
@@ -180,8 +181,9 @@ class LoginView(APIView):
 
         return response
 
+
 class LogoutView(APIView):
-    authentication_classes = [] 
+    authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
@@ -191,27 +193,18 @@ class LogoutView(APIView):
             try:
                 RefreshToken(refresh).blacklist()
             except Exception:
-                pass  # NEVER crash on logout
+                pass
 
         response = Response(
             {"detail": "Logged out successfully"},
             status=status.HTTP_200_OK,
         )
 
-        response.delete_cookie(
-            "access",
-            path="/",
-            samesite="None",
-            secure=True,
-        )
-        response.delete_cookie(
-            "refresh",
-            path="/",
-            samesite="None",
-            secure=True,
-        )
+        response.delete_cookie("access", path="/", samesite="None", secure=True)
+        response.delete_cookie("refresh", path="/", samesite="None", secure=True)
 
         return response
+
     
 logger = logging.getLogger(__name__)
 
