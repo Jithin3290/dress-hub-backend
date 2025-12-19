@@ -181,24 +181,34 @@ class LoginView(APIView):
         return response
 
 class LogoutView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        refresh = request.COOKIES.get("refresh")
+
+        if refresh:
+            try:
+                RefreshToken(refresh).blacklist()
+            except Exception:
+                pass  # NEVER crash on logout
+
         response = Response(
-            {"message": "Logged out"},
-            status=status.HTTP_200_OK
+            {"detail": "Logged out successfully"},
+            status=status.HTTP_200_OK,
         )
 
-        cookie_kwargs = {
-            "path": "/",
-            "secure": True,
-            "samesite": "None",
-        }
-
-        response.delete_cookie("access", **cookie_kwargs)
-        response.delete_cookie("refresh", **cookie_kwargs)
-        response.delete_cookie("sessionid", path="/")
-        response.delete_cookie("csrftoken", path="/")
+        response.delete_cookie(
+            "access",
+            path="/",
+            samesite="None",
+            secure=True,
+        )
+        response.delete_cookie(
+            "refresh",
+            path="/",
+            samesite="None",
+            secure=True,
+        )
 
         return response
     
