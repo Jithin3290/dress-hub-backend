@@ -183,28 +183,22 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        refresh = request.COOKIES.get("refresh")
-
-        if refresh:
-            try:
-                RefreshToken(refresh).blacklist()
-            except Exception:
-                pass
-
         response = Response(
-            {"detail": "Logged out successfully"},
-            status=status.HTTP_200_OK,
+            {"message": "Logged out"},
+            status=status.HTTP_200_OK
         )
 
-        response.delete_cookie("access", path="/", samesite="None", secure=True)
-        response.delete_cookie("refresh", path="/", samesite="None", secure=True)
+        # delete both JWT cookies
+        response.delete_cookie("access")
+        response.delete_cookie("refresh")
+        response.delete_cookie("sessionid")
+        response.delete_cookie("csrftoken")
 
+        
         return response
-
     
 logger = logging.getLogger(__name__)
 
