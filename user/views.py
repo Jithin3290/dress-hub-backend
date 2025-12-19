@@ -161,27 +161,27 @@ class LoginView(APIView):
 
         # Set cookies
         response.set_cookie(
-            key="access_token",
+            key="access",
             value=access_token,
             httponly=True,
-            secure=False,     # set True in production (HTTPS)
-            samesite="Lax",
+            secure=True,     # set True in production (HTTPS)
+            samesite="None",
             max_age=60 * 60,  # 1 hour
         )
 
         response.set_cookie(
-            key="refresh_token",
+            key="refresh",
             value=refresh_token,
             httponly=True,
-            secure=False,     # set True in production (HTTPS)
-            samesite="Lax",
+            secure=True,     # set True in production (HTTPS)
+            samesite="None",
             max_age=7 * 24 * 60 * 60,  # 7 days
         )
 
         return response
 
 class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         response = Response(
@@ -189,13 +189,17 @@ class LogoutView(APIView):
             status=status.HTTP_200_OK
         )
 
-        # delete both JWT cookies
-        response.delete_cookie("access_token")
-        response.delete_cookie("refresh_token")
-        response.delete_cookie("sessionid")
-        response.delete_cookie("csrftoken")
+        cookie_kwargs = {
+            "path": "/",
+            "secure": True,
+            "samesite": "None",
+        }
 
-        
+        response.delete_cookie("access", **cookie_kwargs)
+        response.delete_cookie("refresh", **cookie_kwargs)
+        response.delete_cookie("sessionid", path="/")
+        response.delete_cookie("csrftoken", path="/")
+
         return response
     
 logger = logging.getLogger(__name__)

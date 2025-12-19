@@ -9,64 +9,73 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
 from pathlib import Path
 from datetime import timedelta
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+import os
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Explicitly load .env
+load_dotenv(BASE_DIR / ".env")
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY is missing")
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-)hrel^y_kl_tj)(ry$lj08)x9#mfc+-y!ve5kk60*$&px!n7wr'
+# --------------------------------------------------
+# SECURITY
+# --------------------------------------------------
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+SECRET_KEY = os.getenv("SECRET_KEY")
+DEBUG = False
 
-ALLOWED_HOSTS = []
-
-
-# Application definition
-
-INSTALLED_APPS = [
-    "channels",
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-
-    'user',
-    'rest_framework',
-    'rest_framework_simplejwt.token_blacklist',
-    "corsheaders",
-    "product",
-    "django_filters",
-    "cart",
-    "wishlist",
-    "order.apps.OrderConfig",
-    "dress_hub_admin",
-    "admin_orders",
-    "admin_products",
-    "admin_user",
-    "drf_spectacular",
-  
+ALLOWED_HOSTS = [
+    "dresshub.duckdns.org",
 ]
 
-MIDDLEWARE = [
-    # --- JWT COOKIE → AUTHORIZATION middleware (MUST be before AuthenticationMiddleware) ---
-    "django_dress.middleware.jwt_cookie_middleware.JWTAuthCookieMiddleware",
+# --------------------------------------------------
+# APPLICATIONS
+# --------------------------------------------------
 
-    # --- CORS ---
+INSTALLED_APPS = [
+    "storages",
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+
+    "corsheaders",
+
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
+
+    # your apps
+    "user",
+    "product",
+    "cart",
+    "wishlist",
+    "order",
+]
+
+# --------------------------------------------------
+# MIDDLEWARE
+# --------------------------------------------------
+
+MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
 
-    # --- Django default middlewares ---
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+
+    #  JWT cookie must run BEFORE auth
+    "django_dress.middleware.jwt_cookie_middleware.JWTAuthCookieMiddleware",
+
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -74,28 +83,32 @@ MIDDLEWARE = [
 ]
 
 
-ROOT_URLCONF = 'django_dress.urls'
+ROOT_URLCONF = "django_dress.urls"
+
+# --------------------------------------------------
+# TEMPLATES
+# --------------------------------------------------
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'django_dress.wsgi.application'
+WSGI_APPLICATION = "django_dress.wsgi.application"
 
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# --------------------------------------------------
+# DATABASE (example)
+# --------------------------------------------------
 
 DATABASES = {
     "default": {
@@ -103,108 +116,103 @@ DATABASES = {
         "NAME": "dresshub_db",
         "USER": "postgres",
         "PASSWORD": "12345",
-        "HOST": "localhost",
-        "PORT": "5433",
+        "HOST": "127.0.0.1",
+        "PORT": "5432",
     }
 }
-
-
-
-
-
-# Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
-]
-
-
-# Internationalization
-# https://docs.djangoproject.com/en/5.2/topics/i18n/
-
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
-USE_I18N = True
-
-USE_TZ = True
-
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
-STATIC_URL = 'static/'
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
+# --------------------------------------------------
+# AUTH
+# --------------------------------------------------
 
 AUTH_USER_MODEL = "user.User"
+
+# --------------------------------------------------
+# REST FRAMEWORK
+# --------------------------------------------------
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+        "rest_framework.permissions.IsAuthenticated",
     ),
-        "DEFAULT_FILTER_BACKENDS": [
-        "django_filters.rest_framework.DjangoFilterBackend",
-    ],
-     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-
 }
 
+# --------------------------------------------------
+# SIMPLE JWT (COOKIE BASED)
+# --------------------------------------------------
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=180),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=120),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+
     "ROTATE_REFRESH_TOKENS": False,
     "BLACKLIST_AFTER_ROTATION": True,
-    "AUTH_HEADER_TYPES": ("Bearer",),
-}
-# cors
 
+    "AUTH_HEADER_TYPES": ("Bearer",),
+
+    # cookie names MUST match your LoginView
+    "AUTH_COOKIE": "access",
+    "AUTH_COOKIE_REFRESH": "refresh",
+
+    "AUTH_COOKIE_SECURE": True,
+    "AUTH_COOKIE_HTTP_ONLY": True,
+    "AUTH_COOKIE_SAMESITE": "None",
+}
+
+# --------------------------------------------------
+# CORS
+# --------------------------------------------------
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    "https://dress-5sfbnz04i-jithin3290s-projects.vercel.app/",
+    "https://dress-c92kbiejy-jithin3290s-projects.vercel.app/",
 ]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+]
+
 CORS_ALLOW_CREDENTIALS = True
 
-SESSION_COOKIE_SAMESITE = "None"
-CSRF_COOKIE_SAMESITE = "None"
-SESSION_COOKIE_SECURE = True
+# --------------------------------------------------
+# CSRF
+# --------------------------------------------------
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://dress-5sfbnz04i-jithin3290s-projects.vercel.app/",
+    "https://dresshub.duckdns.org",
+    "https://dress-c92kbiejy-jithin3290s-projects.vercel.app/",
+]
+
 CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_HTTPONLY = False
 
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = "None"
 
+# --------------------------------------------------
+# STATIC / MEDIA
+# --------------------------------------------------
 
-BASE_DIR = Path(__file__).resolve().parent.parent  # ensure BASE_DIR defined
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# razorpay
+# --------------------------------------------------
+# PROXY / HTTPS
+# --------------------------------------------------
+
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 RAZORPAY_KEY_ID = "rzp_test_RnrQ2LvFdfgWaI"
 RAZORPAY_KEY_SECRET = "QWayXrI4StKOIpzt866rMpKU"
 
-#SMTP configured
-# settings.py
-# settings.py (example: Gmail SMTP)
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
@@ -213,29 +221,6 @@ EMAIL_HOST_USER = "jithin3290@gmail.com"
 EMAIL_HOST_PASSWORD = "khbh uzno vgmb pjlt"   
 DEFAULT_FROM_EMAIL = "Dress_hub <no-reply@yourdomain.com>"
 
-SPECTACULAR_SETTINGS = {
-    "TITLE": "Dress Hub API",
-    "DESCRIPTION": "API docs for Dress Hub",
-    "VERSION": "1.0.0",
-    # optional: include your servers
-    "SERVERS": [{"url": "http://localhost:8000", "description": "Local"}],
-    # optional: add security scheme for JWT
-    "SECURITY": [{"BearerAuth": []}],
-    "COMPONENT_SPLIT_REQUEST": True,
-    "SWAGGER_UI_SETTINGS": {"docExpansion": "none"},
-    "COMPONENTS": {
-        "securitySchemes": {
-            "BearerAuth": {
-                "type": "http",
-                "scheme": "bearer",
-                "bearerFormat": "JWT"
-            }
-        }
-    }
-}
-
-# REDIS
-# switch django from WSGI to ASGI
 
 ASGI_APPLICATION = "django_dress.asgi.application"
 
@@ -248,3 +233,29 @@ CHANNEL_LAYERS = {
         },
     },
 }
+#s3 
+
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME")
+
+# IMPORTANT: region-specific domain
+AWS_S3_CUSTOM_DOMAIN = "dresshub-media-prod.s3.ap-south-1.amazonaws.com"
+
+# MAKE FILES PUBLIC
+AWS_DEFAULT_ACL = "public-read"
+AWS_QUERYSTRING_AUTH = False
+
+DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+

@@ -27,24 +27,27 @@ class ProductSizeSerializer(serializers.ModelSerializer):
 class AdminProductSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.all(), write_only=True, source="category"
+        queryset=Category.objects.all(),
+        write_only=True,
+        source="category",
     )
 
-    # accept uploaded file for image
-    image = serializers.ImageField(required=False, allow_null=True, write_only=True)
-    # return absolute image url to frontend
-    image_url = serializers.SerializerMethodField(read_only=True)
+    image = serializers.ImageField(required=False, allow_null=True)
 
     sizes = ProductSizeSerializer(many=True, read_only=True)
 
-    # sizes_input: list of string tokens like ["S","M","XL"]
-    sizes_input = serializers.ListField(child=serializers.CharField(), write_only=True, required=False)
+    sizes_input = serializers.ListField(
+        child=serializers.CharField(),
+        write_only=True,
+        required=False,
+    )
     stock = serializers.IntegerField(write_only=True, required=False)
+
 
     class Meta:
         model = Product
         fields = [
-            "id", "name", "slug", "image", "image_url",
+            "id", "name", "slug", "image",
             "new_price", "old_price", "stock",
             "category", "category_id",
             "sizes", "sizes_input",
@@ -64,14 +67,7 @@ class AdminProductSerializer(serializers.ModelSerializer):
         return value
 
 
-    def get_image_url(self, obj):
-        if not obj.image:
-            return None
-        request = self.context.get("request")
-        try:
-            return request.build_absolute_uri(obj.image.url)
-        except Exception:
-            return obj.image.url
+
 
     def _normalize_size_name(self, raw: str) -> str:
         s = (raw or "").strip()
