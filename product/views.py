@@ -29,6 +29,7 @@ class SizeViewSet(viewsets.ModelViewSet):
 
 class ProductViewSet(viewsets.ModelViewSet):
     authentication_classes = []
+    permission_classes = [permissions.AllowAny]
     queryset = Product.objects.all().select_related("category")
     serializer_class = ProductSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)
