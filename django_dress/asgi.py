@@ -9,7 +9,6 @@ from order.ws_middleware import JWTAuthMiddleware
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(), # normal HTTP requests
-    "websocket": JWTAuthMiddleware( # WebSocket with JWT authentication
-        URLRouter(websocket_urlpatterns)
-    ),
+    "websocket": URLRouter(websocket_urlpatterns),
+
 })
